@@ -67,6 +67,16 @@
       margin-top: 20px;
       font-size: 16px;
     }
+
+    .error {
+      color: red;
+    }
+
+    .key-select-container {
+      display: none;
+      margin-top: 20px;
+    }
+
   </style>
 </head>
 <body>
@@ -74,16 +84,26 @@
   <div class="container">
     <h1>Excel Files Comparison</h1>
     <input type="file" id="file1" accept=".xlsx">
-    <select id="sheet1" style="display: none;"></select>
+    <select id="sheet1" style="display: none;">
+      <option value="" disabled selected>Select a sheet</option>
+    </select>
 
     <input type="file" id="file2" accept=".xlsx">
-    <select id="sheet2" style="display: none;"></select>
+    <select id="sheet2" style="display: none;">
+      <option value="" disabled selected>Select a sheet</option>
+    </select>
+
+    <div class="key-select-container">
+      <label for="keySelect">Select Key for Comparison:</label>
+      <select id="keySelect"></select>
+    </div>
 
     <br>
     <button id="compareButton" disabled>Compare Files</button>
 
     <div class="loader" id="loader"></div>
     <div class="status" id="statusText"></div>
+    <div class="error" id="errorText"></div>
   </div>
 
   <!-- Libraries -->
@@ -98,9 +118,14 @@
     const compareButton = document.getElementById('compareButton');
     const loader = document.getElementById('loader');
     const statusText = document.getElementById('statusText');
+    const errorText = document.getElementById('errorText');
+    const keySelectContainer = document.querySelector('.key-select-container');
+    const keySelect = document.getElementById('keySelect');
     
     let file1Data = null, file2Data = null;
     let file1Workbook = null, file2Workbook = null;
+    let file1Headers = null, file2Headers = null;
+    let commonHeaders = [];
 
     file1Input.addEventListener('change', handleFile1Upload);
     file2Input.addEventListener('change', handleFile2Upload);
@@ -117,7 +142,6 @@
         populateSheetSelect(sheet1Select, workbook);
         sheet1Select.style.display = 'block';
         clearPreviousData(1);  // Clear previous data
-        loadSelectedSheet1();   // Load the selected or default sheet
         loader.style.display = 'none';
       }).catch(error => {
         statusText.innerText = "Failed to load file 1.";
@@ -134,7 +158,6 @@
         populateSheetSelect(sheet2Select, workbook);
         sheet2Select.style.display = 'block';
         clearPreviousData(2);  // Clear previous data
-        loadSelectedSheet2();   // Load the selected or default sheet
         loader.style.display = 'none';
       }).catch(error => {
         statusText.innerText = "Failed to load file 2.";
@@ -143,7 +166,7 @@
     }
 
     function populateSheetSelect(selectElement, workbook) {
-      selectElement.innerHTML = '';  // clear options
+      selectElement.innerHTML = '<option value="" disabled selected>Select a sheet</option>';  // clear options and add placeholder
       workbook.SheetNames.forEach((sheetName, index) => {
         const option = document.createElement('option');
         option.value = index;
@@ -153,47 +176,151 @@
     }
 
     function loadSelectedSheet1() {
-      clearPreviousData(1);  // Clear previously loaded data before loading new sheet
       const sheetIndex = sheet1Select.value;
-      const selectedSheet = file1Workbook.Sheets[file1Workbook.SheetNames[sheetIndex]];
-      statusText.innerText = `Loading sheet "${sheet1Select.options[sheetIndex].text}" from file 1...`;
-      loader.style.display = 'block';
-      setTimeout(() => {
-        file1Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-        loader.style.display = 'none';
-        statusText.innerText = "Sheet from file 1 loaded.";
-        enableCompareButton();
-      }, 100);
+      if (sheetIndex !== '') {
+        clearPreviousData(1);  // Clear previously loaded data before loading new sheet
+        const selectedSheet = file1Workbook.Sheets[file1Workbook.SheetNames[sheetIndex]];
+        statusText.innerText = `Loading sheet "${sheet1Select.options[sheetIndex].text}" from file 1...`;
+        loader.style.display = 'block';
+        setTimeout(() => {
+          file1Data = loadDataAndHeaders(selectedSheet, 1);
+          checkCommonHeaders();
+          loader.style.display = 'none';
+        }, 100);
+      }
     }
 
     function loadSelectedSheet2() {
-      clearPreviousData(2);  // Clear previously loaded data before loading new sheet
       const sheetIndex = sheet2Select.value;
-      const selectedSheet = file2Workbook.Sheets[file2Workbook.SheetNames[sheetIndex]];
-      statusText.innerText = `Loading sheet "${sheet2Select.options[sheetIndex].text}" from file 2...`;
-      loader.style.display = 'block';
-      setTimeout(() => {
-        file2Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-        loader.style.display = 'none';
-        statusText.innerText = "Sheet from file 2 loaded.";
-        enableCompareButton();
-      }, 100);
+      if (sheetIndex !== '') {
+        clearPreviousData(2);  // Clear previously loaded data before loading new sheet
+        const selectedSheet = file2Workbook.Sheets[file2Workbook.SheetNames[sheetIndex]];
+        statusText.innerText = `Loading sheet "${sheet2Select.options[sheetIndex].text}" from file 2...`;
+        loader.style.display = 'block';
+        setTimeout(() => {
+          file2Data = loadDataAndHeaders(selectedSheet, 2);
+          checkCommonHeaders();
+          loader.style.display = 'none';
+        }, 100);
+      }
+    }
+
+    function loadDataAndHeaders(sheet, fileNumber) {
+      let jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      let headers = jsonData.reduce((longest, current) => longest.length >= current.length ? longest : current, []);
+      
+      if (fileNumber === 1) {
+        file1Headers = headers;
+      } else {
+        file2Headers = headers;
+      }
+
+      return XLSX.utils.sheet_to_json(sheet, { header: headers });
+    }
+
+    function checkCommonHeaders() {
+      if (file1Headers && file2Headers) {
+        commonHeaders = file1Headers.filter(header => file2Headers.includes(header));
+        keySelect.innerHTML = '';
+
+        if (commonHeaders.length === 0) {
+          errorText.innerText = "No common headers found. Please load compatible files.";
+          compareButton.disabled = true;
+          keySelectContainer.style.display = 'none';
+        } else {
+          errorText.innerText = '';
+          keySelectContainer.style.display = 'block';
+          commonHeaders.forEach(header => {
+            const option = document.createElement('option');
+            option.value = header;
+            option.text = header;
+            keySelect.appendChild(option);
+          });
+          compareButton.disabled = false;
+        }
+      }
     }
 
     function clearPreviousData(fileNumber) {
-      // Clear memory occupied by the previous sheet's data
       if (fileNumber === 1) {
         file1Data = null;
+        file1Headers = null;
       } else if (fileNumber === 2) {
         file2Data = null;
+        file2Headers = null;
       }
+      commonHeaders = [];
+      keySelect.innerHTML = '';
+      keySelectContainer.style.display = 'none';
     }
 
-    function enableCompareButton() {
-      if (file1Data && file2Data) {
-        compareButton.disabled = false;
-        statusText.innerText = "Files are ready for comparison.";
-      }
+    function compareFiles() {
+      statusText.innerText = "Comparing files...";
+      loader.style.display = 'block';
+
+      setTimeout(() => {
+        const key = keySelect.value;
+        const differences = [];
+
+        const file1GroupedData = groupByKey(file1Data, key);
+        const file2GroupedData = groupByKey(file2Data, key);
+
+        for (const keyValue in file1GroupedData) {
+          if (file2GroupedData[keyValue]) {
+            compareGroups(keyValue, file1GroupedData[keyValue], file2GroupedData[keyValue], differences);
+          }
+        }
+
+        generateExcelReport(differences);
+        loader.style.display = 'none';
+        statusText.innerText = "Comparison complete. Report downloaded.";
+      }, 100);
+    }
+
+    function groupByKey(data, key) {
+      const grouped = {};
+      data.forEach(row => {
+        const keyValue = row[key];
+        if (!grouped[keyValue]) {
+          grouped[keyValue] = [];
+        }
+        grouped[keyValue].push(row);
+      });
+      return grouped;
+    }
+
+    function compareGroups(keyValue, group1, group2, differences) {
+      group1.forEach((row1, index) => {
+        const row2 = group2[index] || {};
+        const modifiedColumns = [];
+
+        for (const column in row1) {
+          if (row1[column] !== row2[column]) {
+            modifiedColumns.push(column);
+          }
+        }
+
+        if (modifiedColumns.length > 0) {
+          differences.push({
+            keyValue,
+            modifiedColumns: modifiedColumns.join('; '),
+          });
+        }
+      });
+    }
+
+    function generateExcelReport(differences) {
+      const wb = XLSX.utils.book_new();
+      const ws_data = [["Key Value", "Modified Columns"]];
+
+      differences.forEach(diff => {
+        ws_data.push([diff.keyValue, diff.modifiedColumns]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb, ws, "Comparison Report");
+
+      XLSX.writeFile(wb, "comparison_report.xlsx");
     }
 
     function readExcelFile(file) {
@@ -207,56 +334,6 @@
         reader.onerror = reject;
         reader.readAsArrayBuffer(file);
       });
-    }
-
-    function compareFiles() {
-      statusText.innerText = "Comparing files...";
-      loader.style.display = 'block';
-
-      setTimeout(() => {
-        const differences = [];
-        
-        const maxRows = Math.max(file1Data.length, file2Data.length);
-        const maxColumns = Math.max(file1Data[0].length, file2Data[0].length);
-        const headers = file1Data[0] || file2Data[0];  // Assuming headers in the first row
-
-        for (let i = 1; i < maxRows; i++) {  // Start from 1 to skip headers
-          const row1 = file1Data[i] || [];
-          const row2 = file2Data[i] || [];
-
-          for (let j = 0; j < maxColumns; j++) {
-            const cell1 = row1[j] !== undefined ? row1[j] : '';
-            const cell2 = row2[j] !== undefined ? row2[j] : '';
-
-            if (cell1 !== cell2) {
-              differences.push({
-                columnName: headers[j] || `Column ${j + 1}`,
-                rowIndex: i + 1,
-                contentBefore: cell1,
-                contentAfter: cell2
-              });
-            }
-          }
-        }
-
-        generateExcelReport(differences);
-        loader.style.display = 'none';
-        statusText.innerText = "Comparison complete. Report downloaded.";
-      }, 100); // Reduced delay for loader effect
-    }
-
-    function generateExcelReport(differences) {
-      const wb = XLSX.utils.book_new();
-      const ws_data = [["Row Index", "Column Name", "Content Before", "Content After"]];
-
-      differences.forEach(diff => {
-        ws_data.push([diff.rowIndex, diff.columnName, diff.contentBefore, diff.contentAfter]);
-      });
-
-      const ws = XLSX.utils.aoa_to_sheet(ws_data);
-      XLSX.utils.book_append_sheet(wb, ws, "Comparison Report");
-
-      XLSX.writeFile(wb, "comparison_report.xlsx");
     }
   </script>
 </body>
