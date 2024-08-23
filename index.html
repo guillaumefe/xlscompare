@@ -103,6 +103,8 @@
 
     file1Input.addEventListener('change', handleFile1Upload);
     file2Input.addEventListener('change', handleFile2Upload);
+    sheet1Select.addEventListener('change', loadSelectedSheet1);  // New event listener
+    sheet2Select.addEventListener('change', loadSelectedSheet2);  // New event listener
     compareButton.addEventListener('click', compareFiles);
 
     function handleFile1Upload(event) {
@@ -112,7 +114,7 @@
         file1Workbook = workbook;
         populateSheetSelect(sheet1Select, workbook);
         sheet1Select.style.display = 'block';
-        loadDefaultSheet1();
+        loadSelectedSheet1();  // Load the selected sheet initially (default to first)
       });
     }
 
@@ -123,7 +125,7 @@
         file2Workbook = workbook;
         populateSheetSelect(sheet2Select, workbook);
         sheet2Select.style.display = 'block';
-        loadDefaultSheet2();
+        loadSelectedSheet2();  // Load the selected sheet initially (default to first)
       });
     }
 
@@ -137,17 +139,19 @@
       });
     }
 
-    function loadDefaultSheet1() {
-      const selectedSheet = file1Workbook.Sheets[file1Workbook.SheetNames[0]];
+    function loadSelectedSheet1() {
+      const sheetIndex = sheet1Select.value;
+      const selectedSheet = file1Workbook.Sheets[file1Workbook.SheetNames[sheetIndex]];
       file1Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-      statusText.innerText = "Default sheet from file 1 loaded.";
+      statusText.innerText = "Sheet from file 1 loaded.";
       enableCompareButton();
     }
 
-    function loadDefaultSheet2() {
-      const selectedSheet = file2Workbook.Sheets[file2Workbook.SheetNames[0]];
+    function loadSelectedSheet2() {
+      const sheetIndex = sheet2Select.value;
+      const selectedSheet = file2Workbook.Sheets[file2Workbook.SheetNames[sheetIndex]];
       file2Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-      statusText.innerText = "Default sheet from file 2 loaded.";
+      statusText.innerText = "Sheet from file 2 loaded.";
       enableCompareButton();
     }
 
