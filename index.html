@@ -103,36 +103,40 @@
 
     file1Input.addEventListener('change', handleFile1Upload);
     file2Input.addEventListener('change', handleFile2Upload);
-    sheet1Select.addEventListener('change', async () => { await loadSelectedSheet1(); });  // New event listener
-    sheet2Select.addEventListener('change', async () => { await loadSelectedSheet2(); });  // New event listener
+    sheet1Select.addEventListener('change', loadSelectedSheet1);
+    sheet2Select.addEventListener('change', loadSelectedSheet2);
     compareButton.addEventListener('click', compareFiles);
 
-    async function handleFile1Upload(event) {
+    function handleFile1Upload(event) {
       const file = event.target.files[0];
       statusText.innerText = "Loading file 1...";
       loader.style.display = 'block';
-      try {
-        file1Workbook = await readExcelFile(file);
-        populateSheetSelect(sheet1Select, file1Workbook);
+      readExcelFile(file).then(workbook => {
+        file1Workbook = workbook;
+        populateSheetSelect(sheet1Select, workbook);
         sheet1Select.style.display = 'block';
-        await loadSelectedSheet1();  // Load the selected sheet initially (default to first)
-      } finally {
+        loadSelectedSheet1();
         loader.style.display = 'none';
-      }
+      }).catch(error => {
+        statusText.innerText = "Failed to load file 1.";
+        console.error(error);
+      });
     }
 
-    async function handleFile2Upload(event) {
+    function handleFile2Upload(event) {
       const file = event.target.files[0];
       statusText.innerText = "Loading file 2...";
       loader.style.display = 'block';
-      try {
-        file2Workbook = await readExcelFile(file);
-        populateSheetSelect(sheet2Select, file2Workbook);
+      readExcelFile(file).then(workbook => {
+        file2Workbook = workbook;
+        populateSheetSelect(sheet2Select, workbook);
         sheet2Select.style.display = 'block';
-        await loadSelectedSheet2();  // Load the selected sheet initially (default to first)
-      } finally {
+        loadSelectedSheet2();
         loader.style.display = 'none';
-      }
+      }).catch(error => {
+        statusText.innerText = "Failed to load file 2.";
+        console.error(error);
+      });
     }
 
     function populateSheetSelect(selectElement, workbook) {
@@ -145,30 +149,30 @@
       });
     }
 
-    async function loadSelectedSheet1() {
+    function loadSelectedSheet1() {
       const sheetIndex = sheet1Select.value;
       const selectedSheet = file1Workbook.Sheets[file1Workbook.SheetNames[sheetIndex]];
-      statusText.innerText = `Loading sheet ${sheet1Select.options[sheetIndex].text} from file 1...`;
+      statusText.innerText = `Loading sheet "${sheet1Select.options[sheetIndex].text}" from file 1...`;
       loader.style.display = 'block';
-      await delayLoading(() => {
+      setTimeout(() => {
         file1Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-      });
-      statusText.innerText = "Sheet from file 1 loaded.";
-      loader.style.display = 'none';
-      enableCompareButton();
+        loader.style.display = 'none';
+        statusText.innerText = "Sheet from file 1 loaded.";
+        enableCompareButton();
+      }, 100);
     }
 
-    async function loadSelectedSheet2() {
+    function loadSelectedSheet2() {
       const sheetIndex = sheet2Select.value;
       const selectedSheet = file2Workbook.Sheets[file2Workbook.SheetNames[sheetIndex]];
-      statusText.innerText = `Loading sheet ${sheet2Select.options[sheetIndex].text} from file 2...`;
+      statusText.innerText = `Loading sheet "${sheet2Select.options[sheetIndex].text}" from file 2...`;
       loader.style.display = 'block';
-      await delayLoading(() => {
+      setTimeout(() => {
         file2Data = XLSX.utils.sheet_to_json(selectedSheet, { header: 1 });
-      });
-      statusText.innerText = "Sheet from file 2 loaded.";
-      loader.style.display = 'none';
-      enableCompareButton();
+        loader.style.display = 'none';
+        statusText.innerText = "Sheet from file 2 loaded.";
+        enableCompareButton();
+      }, 100);
     }
 
     function enableCompareButton() {
@@ -191,11 +195,11 @@
       });
     }
 
-    async function compareFiles() {
+    function compareFiles() {
       statusText.innerText = "Comparing files...";
       loader.style.display = 'block';
-      
-      setTimeout(() => {  // Simulate a delay for showing the loader
+
+      setTimeout(() => {
         const differences = [];
         
         const maxRows = Math.max(file1Data.length, file2Data.length);
@@ -224,7 +228,7 @@
         generateExcelReport(differences);
         loader.style.display = 'none';
         statusText.innerText = "Comparison complete. Report downloaded.";
-      }, 1000); // Simulated delay for loader effect
+      }, 100); // Reduced delay for loader effect
     }
 
     function generateExcelReport(differences) {
@@ -239,16 +243,6 @@
       XLSX.utils.book_append_sheet(wb, ws, "Comparison Report");
 
       XLSX.writeFile(wb, "comparison_report.xlsx");
-    }
-
-    // Helper function to simulate delay loading of large data sets.
-    function delayLoading(callback) {
-      return new Promise(resolve => {
-        setTimeout(() => {
-          callback();
-          resolve();
-        }, 0);
-      });
     }
   </script>
 </body>
